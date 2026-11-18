@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% from "_m.html" import icon, badge, empty with context %}
+{% block title %}Patients{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Patients</h1><p>Keep records, track readings over time and see who needs a follow-up.</p></div>
+  <div class="actions"><a class="btn primary" href="{{ url_for('web.patient_new') }}">{{ icon('plus') }} Add patient</a></div></div>
+<form class="filters" method="get">
+  <div class="field" style="flex:1;min-width:220px"><label for="q">Search by name</label><input class="input" id="q" name="q" value="{{ q }}" placeholder="e.g. Asha"></div>
+  <div class="field"><label for="band">Latest risk</label><select class="select" id="band" name="band"><option value="">All</option>
+    {% for v, t in [('high','High'),('moderate','Moderate'),('low','Low'),('none','Not assessed')] %}<option value="{{ v }}" {{ 'selected' if band == v }}>{{ t }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="due">Follow-ups</label><select class="select" id="due" name="due"><option value="">All</option><option value="1" {{ 'selected' if due == '1' }}>Due within 7 days</option></select></div>
+  <button class="btn secondary" type="submit">{{ icon('search') }} Filter</button>
+</form>
+<div class="card" style="padding:.4rem .6rem">
+{% if page.items %}
+<div class="table-wrap"><table>
+  <thead><tr><th>Patient</th><th>Age / sex</th><th>Latest risk</th><th>Last assessed</th><th>Next check-up</th><th></th></tr></thead>
+  <tbody>{% for p in page.items %}{% set l = p.latest %}
+  <tr><td><div class="person"><span class="avatar">{{ p.initials }}</span><div><a class="name" href="{{ url_for('web.patient_detail', pid=p.id) }}">{{ p.name }}</a>{% if p.is_demo %} <span class="badge b-demo">Demo</span>{% endif %}</div></div></td>
+    <td>{{ p.age or '-' }}{% if p.sex is not none %} · {{ 'Male' if p.sex == 1 else 'Female' }}{% endif %}</td>
+    <td>{% if l %}{{ badge(l.band) }} <span class="small muted">{{ l.pct }}%</span>{% else %}<span class="muted small">Not assessed</span>{% endif %}</td>
+    <td class="small muted">{{ l.created_at|d if l else '-' }}</td>
+    <td>{% if p.next_checkup %}{% set dd = (p.next_checkup - today).days %}{{ p.next_checkup|d }} {% if dd < 0 %}<span class="badge b-bad">Overdue</span>{% elif dd <= 7 %}<span class="badge b-warn">Due soon</span>{% endif %}{% else %}<span class="muted small">None</span>{% endif %}</td>
+    <td class="right"><a class="btn secondary sm" href="{{ url_for('web.patient_detail', pid=p.id) }}">Open</a></td></tr>{% endfor %}</tbody></table></div>
+{% else %}{{ empty('No patients found', 'Add a patient or change the filters.', url_for('web.patient_new'), 'Add patient') }}{% endif %}
+</div>
+{% from "_m.html" import pager with context %}{{ pager(page, 'web.patients') }}
+{% endblock %}

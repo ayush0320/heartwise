@@ -1,0 +1,57 @@
+{% extends "base.html" %}{% from "_m.html" import icon, control, csrf with context %}
+{% block title %}What-if{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>What-if simulator</h1>
+  <p>Move the sliders and watch the estimate and its explanation change live. {% if label %}Starting from {{ label }}.{% else %}Starting from a typical patient.{% endif %}</p></div></div>
+<div class="split">
+  <div class="card">
+    <div class="card-head"><h3>Adjust the inputs</h3><button class="btn ghost sm" type="button" id="reset">Reset to start</button></div>
+    <div class="grid g2" style="gap:1.1rem 1.4rem">
+      {% for f in ml.FEATURES %}{% set spec = specs[f] %}
+      {% if spec.kind == 'number' %}
+      <div class="field"><div class="slider-row"><label for="f-{{ f }}">{{ spec.label }}</label><span class="val" id="v-{{ f }}"></span>
+        <input type="range" id="f-{{ f }}" min="{{ limits[f][0] }}" max="{{ limits[f][1] }}" step="{{ spec.step }}" value="{{ values[f] }}" data-unit="{{ ml.UNITS[f] }}"></div><span class="help">{{ spec.help }}</span></div>
+      {% else %}{{ control(f, spec, choices, values[f]) }}{% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  <aside class="card sticky">
+    <div class="gauge-wrap"><div id="gauge"></div><div class="verdict" id="verdict"></div></div>
+    <div id="delta" class="center small muted mt-s"></div>
+    <div class="seg mt"><label><input type="radio" name="mode" value="standard" {{ 'checked' if mode != 'screening' }}><div class="opt"><b>Standard</b><span id="t-std">flags at 50%</span></div></label>
+      <label><input type="radio" name="mode" value="screening" {{ 'checked' if mode == 'screening' }}><div class="opt"><b>Screening</b><span id="t-scr">lower threshold</span></div></label></div>
+    <hr class="sep"><h4>What is driving it</h4><div class="legend"><span><i style="background:var(--bad)"></i>raises</span><span><i style="background:var(--ok)"></i>lowers</span></div>
+    <div class="shap" id="shap"></div>
+    <form method="post" action="{{ url_for('web.predict') }}" id="save-form" class="mt">{{ csrf() }}<input type="hidden" name="mode" id="save-mode" value="standard">
+      {% for f in ml.FEATURES %}<input type="hidden" name="{{ f }}" id="s-{{ f }}">{% endfor %}
+      <button class="btn secondary" style="width:100%;justify-content:center" type="submit">{{ icon('check') }} Save as an assessment</button></form>
+    <p class="tiny muted mt-s" id="warn"></p>
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const F = {{ ml.FEATURES|tojson }}, SCR = {{ ((active_model.screening_threshold if active_model else 0.3) * 100)|round|int }};
+const $ = id => document.getElementById(id);
+document.getElementById('t-scr').textContent = 'flags at ' + SCR + '%';
+const start = {}; F.forEach(f => start[f] = $('f-' + f).value);
+let base = null, seq = 0, timer = null;
+const mode = () => document.querySelector('input[name=mode]:checked').value;
+function labels() { F.forEach(f => { const el = $('f-' + f), v = $('v-' + f); if (v) v.textContent = (+el.value % 1 ? (+el.value).toFixed(1) : +el.value) + ' ' + el.dataset.unit; }); }
+async function update() {
+  labels(); const id = ++seq, body = {mode: mode()}; F.forEach(f => body[f] = parseFloat($('f-' + f).value));
+  const r = await fetch('{{ url_for("web.live") }}', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': HW.csrf()}, body: JSON.stringify(body)});
+  if (id !== seq) return; const j = await r.json(); if (!r.ok) { $('warn').textContent = (j.error || []).join(' '); return; }
+  if (base === null) base = j.pct;
+  HW.gauge($('gauge'), j.pct / 100, j.edges, j.threshold);
+  const v = $('verdict'); v.className = 'verdict v-' + j.band; v.textContent = j.flagged ? 'Flagged: further investigation suggested' : 'Not flagged';
+  const d = Math.round((j.pct - base) * 10) / 10; $('delta').innerHTML = d === 0 ? 'Same as the starting values' : 'Compared with the start: <b style="color:var(--' + (d > 0 ? 'bad' : 'ok') + ')">' + (d > 0 ? '▲ +' : '▼ ') + d + ' points</b>';
+  HW.shap($('shap'), j.contributions, {max: 25, limit: 8}); $('warn').textContent = (j.warnings || []).join(' ');
+}
+function schedule() { clearTimeout(timer); timer = setTimeout(update, 120); }
+F.forEach(f => $('f-' + f).addEventListener('input', schedule)); document.querySelectorAll('input[name=mode]').forEach(r => r.addEventListener('change', schedule));
+$('reset').addEventListener('click', () => { F.forEach(f => $('f-' + f).value = start[f]); update(); });
+$('save-form').addEventListener('submit', () => { F.forEach(f => $('s-' + f).value = $('f-' + f).value); $('save-mode').value = mode(); });
+update();
+</script>
+{% endblock %}

@@ -1,0 +1,11 @@
+# Built and tested with Python 3.12.3, Flask 3.1, SQLAlchemy 2.1, pandas 3.0, scikit-learn 1.8, xgboost 3.4, shap 0.54.
+# The lower bounds below are permissive guesses and have not been tested on older versions.
+flask-sqlalchemy>=3.1
+sqlalchemy>=2.0
+reportlab>=4.0
+pandas>=2.2
+numpy>=1.26
+scikit-learn>=1.5
+xgboost>=2.1
+shap>=0.46
+joblib>=1.4

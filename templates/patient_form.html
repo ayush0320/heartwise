@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% from "_m.html" import icon, csrf with context %}
+{% block title %}{{ 'Edit patient' if patient else 'New patient' }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>{{ 'Edit patient' if patient else 'New patient' }}</h1><p>Use demo or made-up details if this site is public. Do not enter real personal health data.</p></div></div>
+{% if errors %}<div class="alert error">{{ icon('alert') }}<div><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div><br>{% endif %}
+<form method="post" class="card" style="max-width:720px">{{ csrf() }}
+  <div class="fgrid">
+    <div class="field"><label for="name">Name</label><input class="input" id="name" name="name" value="{{ form.get('name', '') }}" maxlength="120" required></div>
+    <div class="field"><label for="sex">Sex</label><select class="select" id="sex" name="sex">
+      {% for v, t in [('', 'Not stated'), ('1', 'Male'), ('0', 'Female')] %}<option value="{{ v }}" {{ 'selected' if form.get('sex', '')|string == v }}>{{ t }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="birth_year">Birth year</label><input class="input" id="birth_year" name="birth_year" type="number" min="1900" max="{{ today.year }}" value="{{ form.get('birth_year', '') }}"></div>
+    <div class="field"><label for="next_checkup">Next check-up</label><input class="input" id="next_checkup" name="next_checkup" type="date" value="{{ form.get('next_checkup', '') }}"><span class="help">Shows up on the dashboard when it is close.</span></div>
+  </div>
+  <div class="field mt"><label for="notes">Notes</label><textarea id="notes" name="notes" rows="3" maxlength="1000">{{ form.get('notes', '') }}</textarea></div>
+  <div class="actions mt"><button class="btn primary" type="submit">{{ icon('check') }} Save patient</button><a class="btn ghost" href="{{ url_for('web.patient_detail', pid=patient.id) if patient else url_for('web.patients') }}">Cancel</a></div>
+</form>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}{% from "_m.html" import icon with context %}
+{% block title %}API docs{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>API documentation</h1><p>Generated from the code. The machine-readable version is at <a href="/api/openapi.json">/api/openapi.json</a>.</p></div></div>
+<div class="split-even">
+  <div class="card"><h3>Authentication</h3><p>Send an API key in the <span class="mono">X-API-Key</span> header. Each key may make {{ cfg.API_RATE_LIMIT }} requests per minute; after that the API replies <span class="mono">429</span> with a <span class="mono">Retry-After</span> header. Only a hash of each key is stored.</p>
+    <p class="small">Errors are JSON: <span class="mono">{"error": {"code": "...", "message": "..."}}</span></p></div>
+  <div class="card"><h3>Your key</h3><div class="field"><label for="key">API key</label><input class="input mono" id="key" placeholder="hw_..." autocomplete="off"></div>
+    <div class="actions mt-s"><button class="btn secondary sm" id="mk" type="button">{{ icon('key') }} Create a demo key</button><span class="small muted" id="mk-msg">Stored only in this browser tab.</span></div></div>
+</div>
+<div class="grid mt">
+{% for e in endpoints %}
+<div class="card" data-method="{{ e.method }}" data-path="{{ e.path }}" data-auth="{{ 1 if e.auth else 0 }}">
+  <div class="card-head"><div><span class="method m-{{ e.method }}">{{ e.method }}</span> <b class="mono">{{ e.path }}</b></div>{% if not e.auth %}<span class="badge b-muted">public</span>{% else %}<span class="badge b-info">key required</span>{% endif %}</div>
+  <p class="strong" style="margin-bottom:.2rem">{{ e.summary }}</p><p class="small">{{ e.description }}</p>
+  {% if e.request_example %}<h4>Request body</h4><textarea class="input code-in" spellcheck="false">{{ e.request_example|tojson(indent=2) }}</textarea>{% endif %}
+  {% if e.response_example %}<h4 class="mt-s">Example response</h4><pre class="code">{{ e.response_example|tojson(indent=2) }}</pre>{% endif %}
+  <h4 class="mt-s">curl</h4><pre class="code">curl -X {{ e.method }} {{ request.host_url.rstrip('/') }}{{ e.path }}{% if e.auth %} \
+  -H "X-API-Key: YOUR_KEY"{% endif %}{% if e.request_example %} \
+  -H "Content-Type: application/json" \
+  -d '{{ e.request_example|tojson }}'{% endif %}</pre>
+  <div class="actions mt-s"><button class="btn primary sm try" type="button">Try it</button></div><pre class="code try-out" hidden></pre>
+</div>{% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const key = document.getElementById('key'); try { key.value = sessionStorage.getItem('hw-key') || ''; } catch (e) {}
+key.addEventListener('input', () => { try { sessionStorage.setItem('hw-key', key.value); } catch (e) {} });
+document.getElementById('mk').addEventListener('click', async () => {
+  const msg = document.getElementById('mk-msg');
+  const fd = new FormData(); fd.append('name', 'demo key'); fd.append('_csrf', HW.csrf());
+  try { const r = await fetch('{{ url_for("web.admin_key_create") }}', {method: 'POST', body: fd, headers: {'X-Requested-With': 'fetch'}});
+    const j = await r.json(); key.value = j.key; key.dispatchEvent(new Event('input')); msg.textContent = 'Created. Copy it now; it will not be shown again.';
+  } catch (e) { msg.textContent = 'Key creation is switched off on this deployment. Ask the admin for a key.'; }
+});
+document.querySelectorAll('.try').forEach(btn => btn.addEventListener('click', async () => {
+  const card = btn.closest('.card'), out = card.querySelector('.try-out'), ta = card.querySelector('textarea');
+  const headers = {}; if (card.dataset.auth === '1') headers['X-API-Key'] = key.value.trim();
+  const opts = {method: card.dataset.method, headers};
+  if (ta) { headers['Content-Type'] = 'application/json'; opts.body = ta.value; }
+  out.hidden = false; out.textContent = 'Sending...';
+  try { const r = await fetch(card.dataset.path, opts); const t = await r.text(); let pretty = t; try { pretty = JSON.stringify(JSON.parse(t), null, 2); } catch (e) {}
+    out.textContent = 'HTTP ' + r.status + '\n' + pretty; } catch (e) { out.textContent = 'Request failed: ' + e.message; }
+}));
+</script>{% endblock %}

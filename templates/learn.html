@@ -1,0 +1,42 @@
+{% extends "base.html" %}{% from "_m.html" import icon with context %}
+{% block title %}Learn{% endblock %}
+{% block content %}
+{% set extra = {
+ 'age': 'Risk rises with age. Typical reference: none, it is context for the other numbers.',
+ 'sex': 'Men tend to develop heart disease earlier; women catch up after menopause.',
+ 'cp': 'Typical angina is pressure or tightness brought on by effort and relieved by rest. Atypical angina fits only part of that pattern. Non-anginal pain is unlikely to be from the heart. Asymptomatic means no chest pain, which does not rule out disease.',
+ 'trestbps': 'Doctors usually aim for below about 130/80 mm Hg for most adults, but targets differ. Ask what is right for you.',
+ 'chol': 'Under 200 mg/dl total cholesterol is generally considered desirable. Your doctor will also look at LDL, HDL and triglycerides.',
+ 'fbs': 'Below 100 mg/dl is typical. 100 to 125 is called prediabetes. 126 or more on repeat tests suggests diabetes.',
+ 'restecg': 'A resting ECG can show strain or thickening of the heart muscle, or changes in the electrical pattern. Only a doctor can interpret it.',
+ 'thalach': 'A common rule of thumb for age-predicted maximum heart rate is 220 minus your age. It is approximate. A low peak can reflect poor fitness or heart problems.',
+ 'exang': 'Chest pain during exercise that goes away with rest is a classic warning sign and should be checked.',
+ 'oldpeak': 'A drop of the ST segment during exercise (about 1 mm or more) is generally treated as more concerning than a small one.',
+ 'slope': 'A flat or downsloping ST segment at peak exercise is generally more concerning than an upsloping one.',
+ 'ca': 'Fluoroscopy highlights vessels with calcium or narrowing. More highlighted vessels usually means more disease.',
+ 'thal': 'From a stress blood-flow test. A fixed defect suggests an old scar. A reversible defect suggests an area that is short of blood during effort.'} %}
+<div class="page-head"><div><h1>Learn</h1><p>Plain-language guide to the 13 inputs, the factors behind heart disease and when to get help.</p></div></div>
+<div class="callout"><span style="color:var(--bad);font-size:1.6rem">{{ icon('alert') }}</span><div><h3>When to get help straight away</h3>
+  <p>Call your local emergency number (<b>112 in India</b>) for chest pain that is severe, lasts more than a few minutes or spreads to the arm, jaw or back, especially with breathlessness, sweating, nausea or fainting. Do not use this website to decide whether to seek help.</p></div></div>
+<h2 style="margin-top:2rem">Know your numbers</h2>
+<div class="grid g2 mt-s">
+{% for f in ml.FEATURES %}<div class="card flat"><div class="card-head"><h3>{{ specs[f].label }}</h3>{% if ml.UNITS.get(f) %}<span class="badge b-muted">{{ ml.UNITS[f] }}</span>{% endif %}</div>
+  <p class="small" style="color:var(--ink)">{{ specs[f].help }}</p><p class="small">{{ extra[f] }}</p>
+  {% if f in choices %}<div class="chips">{% for v, t in choices[f] %}<span class="chip">{{ v }} · {{ t }}</span>{% endfor %}</div>{% endif %}</div>{% endfor %}
+</div>
+<h2 style="margin-top:2rem">What you can and cannot change</h2>
+<div class="grid g2 mt-s">
+  <div class="card"><h3>You can influence</h3><ul style="padding-left:1.1rem;color:var(--ink-2)"><li>Blood pressure: less salt, more activity, healthy weight, limited alcohol</li><li>Cholesterol: more vegetables, fruit, whole grains and pulses; less fried and processed food</li><li>Blood sugar: weight, activity and diet, with regular checks</li><li>Smoking and tobacco: stopping is one of the biggest single steps</li><li>Physical activity: about 150 minutes a week of moderate activity is a common recommendation, if your doctor agrees</li></ul></div>
+  <div class="card"><h3>You cannot change, but should know</h3><ul style="padding-left:1.1rem;color:var(--ink-2)"><li>Age and sex</li><li>Family history of early heart disease</li><li>Test results such as ECG patterns and imaging findings. They are for a cardiologist to interpret and follow up</li></ul></div>
+</div>
+<h2 style="margin-top:2rem">Questions people ask</h2>
+<div class="mt-s">
+<details class="faq"><summary>Is this a diagnosis?</summary><p>No. It is an educational screening aid trained on 303 patients from one hospital. Only a doctor can diagnose heart disease.</p></details>
+<details class="faq"><summary>What does "flagged" mean?</summary><p>The estimate is at or above the threshold of the chosen mode (50% in standard mode). It means "worth a closer look by a doctor", not "you have heart disease".</p></details>
+<details class="faq"><summary>What is screening mode?</summary><p>It lowers the threshold so the tool misses fewer patients with disease, at the price of more false alarms. We added it because, on other hospitals' data, the standard threshold missed about half of the patients with disease.</p></details>
+<details class="faq"><summary>What is SHAP?</summary><p>A method that shares the credit for one prediction among the inputs. Starting from the average patient, each input adds or removes some percentage points, and the pieces add up exactly to the estimate. It shows what the model relied on, not what causes disease.</p></details>
+<details class="faq"><summary>Where does the data come from?</summary><p>The UCI Machine Learning Repository's Heart Disease dataset: Cleveland, Hungarian, Switzerland and VA Long Beach files, collected by cardiology centres in the 1980s. The model is trained on Cleveland only.</p></details>
+<details class="faq"><summary>Is my data stored?</summary><p>Assessments are saved in this site's own database so you can see history and trends. Nothing is sent to third parties. If this is a public demo, use made-up details. See the <a href="{{ url_for('web.disclaimer') }}">privacy notes</a>.</p></details>
+</div>
+<p class="small mt">Further reading: {% for t, u in links %}<a href="{{ u }}" target="_blank" rel="noopener">{{ t }}</a>{{ ' · ' if not loop.last }}{% endfor %}</p>
+{% endblock %}

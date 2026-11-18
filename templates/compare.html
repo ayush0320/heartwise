@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% from "_m.html" import icon, badge with context %}
+{% block title %}Compare{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Compare assessments</h1><p>#{{ A.id }} ({{ A.created_at|d }}) and #{{ B.id }} ({{ B.created_at|d }}){% if A.patient and B.patient and A.patient_id == B.patient_id %} for {{ A.patient.name }}{% endif %}.</p></div>
+  <div class="actions"><a class="btn secondary" href="{{ url_for('web.history') }}">Back to history</a></div></div>
+{% if not same_model %}<div class="alert warn">{{ icon('alert') }}<p>These two assessments used different model versions, so part of the difference may come from the model and not from the patient.</p></div><br>{% endif %}
+<div class="grid g3">
+  <div class="card center"><h3>Assessment #{{ A.id }}</h3><div id="gA"></div><p class="small muted">{{ A.created_at|dt }} · {{ A.mode }}</p><a class="btn secondary sm" href="{{ url_for('web.assessment_view', aid=A.id) }}">Open</a></div>
+  <div class="card center" style="display:flex;flex-direction:column;justify-content:center"><div class="muted small strong">CHANGE IN ESTIMATE</div>
+    <div class="bigstat" style="font-size:3rem;color:var(--{{ 'bad' if delta > 0 else ('ok' if delta < 0 else 'ink-2') }})">{{ '+' if delta > 0 }}{{ delta }}</div><div class="muted">percentage points</div>
+    <p class="small mt-s">{{ badge(A.band) }} → {{ badge(B.band) }}</p></div>
+  <div class="card center"><h3>Assessment #{{ B.id }}</h3><div id="gB"></div><p class="small muted">{{ B.created_at|dt }} · {{ B.mode }}</p><a class="btn secondary sm" href="{{ url_for('web.assessment_view', aid=B.id) }}">Open</a></div>
+</div>
+<div class="split-even mt">
+  <div class="card"><div class="card-head"><h3>Inputs</h3><span class="small muted">changed values are highlighted</span></div>
+    <div class="table-wrap"><table class="tbl-sm"><thead><tr><th>Input</th><th>#{{ A.id }}</th><th>#{{ B.id }}</th></tr></thead><tbody>
+    {% for label, a, b, changed in rows %}<tr><td>{{ label }}</td><td>{{ a }}</td><td>{% if changed %}<mark class="chg">{{ b }}</mark>{% else %}{{ b }}{% endif %}</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="card"><div class="card-head"><h3>What moved the estimate</h3><span class="small muted">change in each input's SHAP share</span></div>
+    <div class="legend"><span><i style="background:var(--bad)"></i>pushes risk up</span><span><i style="background:var(--ok)"></i>pushes risk down</span></div><div class="shap" id="deltas"></div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script type="application/json" id="page-data">{{ data|tojson }}</script>
+<script>
+const D = JSON.parse(document.getElementById('page-data').textContent);
+HW.gauge(document.getElementById('gA'), D.a.pct / 100, D.a.edges, D.a.threshold); HW.gauge(document.getElementById('gB'), D.b.pct / 100, D.b.edges, D.b.threshold);
+HW.shap(document.getElementById('deltas'), D.deltas.filter(d => Math.abs(d.points) >= 0.05), {limit: 10});
+</script>{% endblock %}

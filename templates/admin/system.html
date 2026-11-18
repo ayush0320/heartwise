@@ -1,0 +1,25 @@
+{% extends "base.html" %}{% from "_m.html" import icon, csrf with context %}
+{% block title %}Admin: system{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Admin: system</h1><p>API keys, demo data and the audit trail.</p></div></div>
+{% include "admin/_nav.html" %}
+{% if new_key %}<div class="alert ok">{{ icon('check') }}<div><p><b>New API key. Copy it now, it is shown only once.</b></p><div class="keybox mt-s">{{ new_key }}</div></div></div><br>{% endif %}
+<div class="split-even">
+  <div class="card"><div class="card-head"><h3>API keys</h3></div>
+    <form method="post" action="{{ url_for('web.admin_key_create') }}" class="actions mb">{{ csrf() }}<input class="input" name="name" placeholder="Name, e.g. mobile app" style="max-width:240px" required><button class="btn primary sm" type="submit" {{ 'disabled' if read_only }}>{{ icon('key') }} Create key</button></form>
+    {% if keys %}<div class="table-wrap"><table class="tbl-sm"><thead><tr><th>Name</th><th>Prefix</th><th class="num">Calls</th><th>Last used</th><th></th></tr></thead><tbody>
+    {% for k in keys %}<tr><td>{{ k.name }} {% if k.revoked %}<span class="badge b-bad">revoked</span>{% endif %}</td><td class="mono small">{{ k.prefix }}...</td><td class="num">{{ k.request_count }}</td><td class="small">{{ k.last_used_at|dt if k.last_used_at else '-' }}</td>
+      <td class="right">{% if not k.revoked %}<form method="post" action="{{ url_for('web.admin_key_revoke', kid=k.id) }}" data-confirm="Revoke this key?">{{ csrf() }}<button class="btn danger sm" type="submit">Revoke</button></form>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+    {% else %}<p class="muted">No keys yet.</p>{% endif %}</div>
+  <div class="grid">
+    <div class="card"><div class="card-head"><h3>Demo data</h3></div><p class="small">{{ n_demo }} demo patients loaded. Demo records are fake people built from public UCI rows and are marked "Demo" everywhere.</p>
+      <form method="post" action="{{ url_for('web.admin_demo') }}" class="actions">{{ csrf() }}<button class="btn secondary sm" name="action" value="load" type="submit" {{ 'disabled' if read_only }}>Load demo data</button>
+        <button class="btn danger sm" name="action" value="clear" type="submit" {{ 'disabled' if read_only }} onclick="return confirm('Remove all demo patients and their assessments?')">Remove demo data</button></form></div>
+    <div class="card"><div class="card-head"><h3>Environment</h3></div>
+      <dl class="kv"><dt>Version</dt><dd>{{ cfg.APP_VERSION }}</dd><dt>Database</dt><dd class="mono small">{{ db_url }}</dd><dt>API rate limit</dt><dd>{{ cfg.API_RATE_LIMIT }} / minute / key</dd><dt>Read-only admin</dt><dd>{{ 'on' if read_only else 'off' }}</dd><dt>Health check</dt><dd><a href="/health">/health</a></dd></dl></div>
+  </div>
+</div>
+<div class="card mt"><div class="card-head"><h3>Audit log</h3><span class="small muted">last 100 actions</span></div>
+  <div class="table-wrap"><table class="tbl-sm"><thead><tr><th>When (UTC)</th><th>Action</th><th>Detail</th><th>From</th></tr></thead><tbody>
+  {% for l in logs %}<tr><td class="small nowrap">{{ l.at|dt }}</td><td><span class="badge b-muted">{{ l.action }}</span></td><td class="small">{{ l.detail }}</td><td class="small muted">{{ l.ip }}</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

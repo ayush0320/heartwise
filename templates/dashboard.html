@@ -1,0 +1,40 @@
+{% extends "base.html" %}{% from "_m.html" import icon, badge, empty with context %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Dashboard</h1><p>What happened recently and who needs attention.</p></div>
+  <div class="actions"><a class="btn primary" href="{{ url_for('web.predict') }}">{{ icon('plus') }} New assessment</a><a class="btn secondary" href="{{ url_for('web.patient_new') }}">{{ icon('users') }} Add patient</a></div></div>
+<div class="grid g4">
+  <div class="card kpi"><span class="ico teal">{{ icon('users') }}</span><span class="label">Patients</span><span class="value">{{ n_patients }}</span><span class="sub">active records</span></div>
+  <div class="card kpi"><span class="ico">{{ icon('activity') }}</span><span class="label">Assessments, 30 days</span><span class="value">{{ n_recent }}</span><span class="sub">web, API and batch</span></div>
+  <div class="card kpi"><span class="ico warn">{{ icon('alert') }}</span><span class="label">Flagged, 30 days</span><span class="value">{{ flagged_pct }}%</span><span class="sub">of recent assessments</span></div>
+  <div class="card kpi"><span class="ico info">{{ icon('calendar') }}</span><span class="label">Follow-ups due</span><span class="value">{{ n_due }}</span><span class="sub">within 7 days or overdue</span></div>
+</div>
+<div class="split-even mt">
+  <div class="card"><div class="card-head"><h3>Assessments, last 14 days</h3></div><div class="chart-box"><canvas id="c-days"></canvas></div></div>
+  <div class="card"><div class="card-head"><h3>Risk bands, all assessments</h3></div><div class="chart-box"><canvas id="c-bands"></canvas></div></div>
+</div>
+<div class="split-even mt">
+  <div class="card"><div class="card-head"><h3>Follow-ups due</h3><a class="small" href="{{ url_for('web.patients', due=1) }}">See all</a></div>
+    {% if due %}<ul class="list-clean">{% for p in due %}{% set dd = (p.next_checkup - today).days %}
+      <li><span class="person"><span class="avatar">{{ p.initials }}</span><span><a class="name" href="{{ url_for('web.patient_detail', pid=p.id) }}">{{ p.name }}</a><br><span class="tiny muted">{{ p.next_checkup|d }}</span></span></span>
+        {% if dd < 0 %}<span class="badge b-bad">Overdue {{ -dd }}d</span>{% elif dd == 0 %}<span class="badge b-warn">Today</span>{% else %}<span class="badge b-warn">In {{ dd }}d</span>{% endif %}</li>{% endfor %}</ul>
+    {% else %}{{ empty('All caught up', 'No follow-ups due in the next 7 days.') }}{% endif %}</div>
+  <div class="card"><div class="card-head"><h3>Needs attention</h3><span class="small muted">latest result flagged</span></div>
+    {% if attention %}<ul class="list-clean">{% for p in attention %}
+      <li><span class="person"><span class="avatar">{{ p.initials }}</span><span><a class="name" href="{{ url_for('web.patient_detail', pid=p.id) }}">{{ p.name }}</a><br><span class="tiny muted">{{ p.latest.created_at|d }}</span></span></span>
+        <span>{{ badge(p.latest.band) }} <b>{{ p.latest.pct }}%</b></span></li>{% endfor %}</ul>
+    {% else %}{{ empty('Nobody flagged', 'No patient currently has a flagged result.') }}{% endif %}</div>
+</div>
+<div class="card mt"><div class="card-head"><h3>Recent assessments</h3><a class="small" href="{{ url_for('web.history') }}">See all</a></div>
+  {% if latest %}<div class="table-wrap"><table><thead><tr><th>When (UTC)</th><th>Patient</th><th>Risk</th><th>Source</th><th></th></tr></thead><tbody>
+  {% for a in latest %}<tr><td class="small">{{ a.created_at|dt }}</td><td>{% if a.patient %}<a href="{{ url_for('web.patient_detail', pid=a.patient.id) }}">{{ a.patient.name }}</a>{% else %}<span class="muted small">Quick assessment</span>{% endif %}</td>
+    <td>{{ badge(a.band) }} <b>{{ a.pct }}%</b></td><td><span class="badge b-muted">{{ a.source }}</span></td><td class="right"><a class="btn secondary sm" href="{{ url_for('web.assessment_view', aid=a.id) }}">Open</a></td></tr>{% endfor %}</tbody></table></div>
+  {% else %}{{ empty('No assessments yet', 'Run the first one.', url_for('web.predict'), 'New assessment') }}{% endif %}</div>
+{% endblock %}
+{% block scripts %}
+<script type="application/json" id="page-data">{{ data|tojson }}</script>
+<script>
+const D = JSON.parse(document.getElementById('page-data').textContent), C = HW.colors();
+HW.chart('c-days', {type: 'bar', data: {labels: D.per_day.map(d => d.x), datasets: [{label: 'Assessments', data: D.per_day.map(d => d.y), backgroundColor: C.brand, borderRadius: 5}]}, options: {plugins: {legend: {display: false}}, scales: {y: {beginAtZero: true, ticks: {precision: 0}}}}});
+HW.chart('c-bands', {type: 'doughnut', data: {labels: ['Low', 'Moderate', 'High'], datasets: [{data: [D.bands.low, D.bands.moderate, D.bands.high], backgroundColor: [C.ok, C.warn, C.bad], borderWidth: 0}]}, options: {cutout: '62%', plugins: {legend: {position: 'bottom'}}}});
+</script>{% endblock %}

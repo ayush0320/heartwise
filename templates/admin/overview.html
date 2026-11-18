@@ -1,0 +1,31 @@
+{% extends "base.html" %}{% from "_m.html" import icon, badge with context %}
+{% block title %}Admin{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Admin</h1><p>Usage, data drift and system status. There is no login in this version, so keep this behind a network rule or a proxy in production.</p></div></div>
+{% include "admin/_nav.html" %}
+<div class="grid g4">
+  <div class="card kpi"><span class="ico">{{ icon('activity') }}</span><span class="label">Assessments</span><span class="value">{{ n_assess }}</span><span class="sub">web {{ by_source.web }} · api {{ by_source.api }} · batch {{ by_source.batch }}</span></div>
+  <div class="card kpi"><span class="ico teal">{{ icon('users') }}</span><span class="label">Patient records</span><span class="value">{{ n_patients }}</span></div>
+  <div class="card kpi"><span class="ico info">{{ icon('key') }}</span><span class="label">API calls</span><span class="value">{{ api_calls }}</span><span class="sub">with keys</span></div>
+  <div class="card kpi"><span class="ico warn">{{ icon('layers') }}</span><span class="label">Model versions</span><span class="value">{{ n_models }}</span><span class="sub">active: {{ v.name }}</span></div>
+</div>
+<div class="card mt"><div class="card-head"><h3>Assessments per day, last 30 days</h3></div><div class="chart-box"><canvas id="c-use"></canvas></div></div>
+<div class="split-even mt">
+  <div class="card"><div class="card-head"><h3>Data drift</h3><span class="badge b-{{ drift.status }}">{{ {'ok':'No drift','watch':'Watch','drift':'Drift detected','insufficient':'Not enough data'}[drift.status] }}</span></div>
+    {% if drift.status == 'insufficient' %}<p>Drift needs at least {{ drift.min_rows }} logged assessments. There are {{ drift.n }} so far.</p>
+    {% else %}<p class="small">Compares the {{ drift.n }} most recent assessments with the training data. Numeric inputs show the shift in training standard deviations; categorical inputs show how much the mix of categories changed (0 to 1). Large shifts mean the model is being used on people unlike its training data.</p>
+      <div class="chart-box"><canvas id="c-drift"></canvas></div>{% endif %}</div>
+  <div class="card"><div class="card-head"><h3>Recent inputs vs training data</h3></div>
+    {% if avg %}<div class="table-wrap"><table class="tbl-sm"><thead><tr><th>Input</th><th class="num">Training mean</th><th class="num">Recent mean</th></tr></thead><tbody>{% for r in avg %}<tr><td>{{ r.label }}</td><td class="num">{{ r.train }} {{ r.unit }}</td><td class="num"><b>{{ r.recent }}</b> {{ r.unit }}</td></tr>{% endfor %}</tbody></table></div>
+    {% else %}<p>No assessments yet.</p>{% endif %}
+    {% if drift.features %}<h4 class="mt-s">Per-feature status</h4><div class="chips">{% for r in drift.features if r.status != 'ok' %}<span class="badge b-{{ r.status }}">{{ r.label }}</span>{% else %}<span class="badge b-ok">All inputs look like training data</span>{% endfor %}</div>{% endif %}</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script type="application/json" id="page-data">{{ data|tojson }}</script>
+<script>
+const D = JSON.parse(document.getElementById('page-data').textContent), C = HW.colors();
+HW.chart('c-use', {type: 'bar', data: {labels: D.usage.map(u => u.x), datasets: [{label: 'Web', data: D.usage.map(u => u.web), backgroundColor: C.brand}, {label: 'API', data: D.usage.map(u => u.api), backgroundColor: C.info}, {label: 'Batch', data: D.usage.map(u => u.batch), backgroundColor: C.teal}]}, options: {scales: {x: {stacked: true}, y: {stacked: true, beginAtZero: true, ticks: {precision: 0}}}, plugins: {legend: {position: 'bottom'}}}});
+if (D.drift.length) { const col = {ok: C.ok, watch: C.warn, drift: C.bad};
+  HW.chart('c-drift', {type: 'bar', data: {labels: D.drift.map(d => d.label), datasets: [{data: D.drift.map(d => d.score), backgroundColor: D.drift.map(d => col[d.status]), borderRadius: 4}]}, options: {indexAxis: 'y', plugins: {legend: {display: false}}}}); }
+</script>{% endblock %}

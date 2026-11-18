@@ -1,0 +1,41 @@
+{% extends "base.html" %}{% from "_m.html" import icon with context %}
+{% block title %}About{% endblock %}
+{% block content %}
+{% set ds = m.datasets if m else none %}
+<div class="page-head"><div><h1>About {{ cfg.PROJECT_TITLE }}</h1><p>An explainable heart-disease screening app, built as a B.Tech project to go beyond "a model that outputs a number".</p></div></div>
+<div class="split-even">
+  <div class="card"><h3>The problem</h3><p>Heart disease is a leading cause of death worldwide and is often found late, because the tests that confirm it are expensive and need a specialist. The measurements used here (blood pressure, cholesterol, ECG, exercise response) are already collected at a normal check-up, so a low-cost screening aid is realistic.</p>
+    <p>Most student projects stop at a notebook with an accuracy figure. This one adds explanations, a test on other hospitals, and a full application around the model.</p></div>
+  <div class="card"><h3>What is new compared with a basic classifier</h3>
+    <ul style="padding-left:1.1rem;color:var(--ink-2)"><li><b>SHAP explanations</b> for every prediction, in percentage points</li><li><b>Cross-hospital validation:</b> trained on Cleveland, tested on three other hospitals</li><li><b>Screening mode,</b> a lower threshold chosen to fix the low recall that validation exposed</li><li><b>A product around it:</b> patients, health log, reports, API, batch scoring, drift monitoring, model versions</li></ul></div>
+</div>
+<h2 style="margin-top:1.8rem">How it fits together</h2>
+<div class="flow mt-s">
+  <div class="node"><b>Data</b><span>4 UCI files: Cleveland (train), Hungarian, Switzerland, VA (validate)</span></div><span class="arrow">{{ icon('arrow') }}</span>
+  <div class="node"><b>Clean</b><span>missing values, median imputation, 0/1 label</span></div><span class="arrow">{{ icon('arrow') }}</span>
+  <div class="node"><b>Compare 4 models</b><span>5-fold cross-validation; best tree model kept</span></div><span class="arrow">{{ icon('arrow') }}</span>
+  <div class="node new"><b>Explain + validate</b><span>SHAP, other hospitals, screening threshold</span></div><span class="arrow">{{ icon('arrow') }}</span>
+  <div class="node"><b>Serve</b><span>Flask pages, REST API, SQL database, PDF reports</span></div>
+</div>
+{% if ds %}
+{% set ext = [ds.hungarian, ds.switzerland, ds.va] %}
+<h2 style="margin-top:1.8rem">What we found</h2>
+<div class="grid g3 mt-s">
+  <div class="card"><div class="kpi"><span class="label">On its own test split</span><span class="value">{{ ds.heldout.standard.roc_auc }}</span><span class="sub">ROC-AUC, recall {{ (ds.heldout.standard.recall * 100)|round|int }}%</span></div></div>
+  <div class="card"><div class="kpi"><span class="label">On other hospitals</span><span class="value">{{ ext|map(attribute='standard')|map(attribute='roc_auc')|min }}–{{ ext|map(attribute='standard')|map(attribute='roc_auc')|max }}</span><span class="sub">ROC-AUC; recall only {{ (ext|map(attribute='standard')|map(attribute='recall')|min * 100)|round|int }}–{{ (ext|map(attribute='standard')|map(attribute='recall')|max * 100)|round|int }}% at 50%</span></div></div>
+  <div class="card"><div class="kpi"><span class="label">With screening mode</span><span class="value">{{ (ext|map(attribute='screening')|map(attribute='recall')|min * 100)|round|int }}–{{ (ext|map(attribute='screening')|map(attribute='recall')|max * 100)|round|int }}%</span><span class="sub">recall on the same hospitals</span></div></div>
+</div>
+{% endif %}
+<h2 style="margin-top:1.8rem">Limitations, stated plainly</h2>
+<div class="card mt-s"><ul style="padding-left:1.1rem;color:var(--ink-2);margin:0"><li>303 training patients from one hospital in the 1980s, with few women. The test set is only 61 patients, so scores can move several points with a different split.</li><li>The model ranks patients reasonably on other hospitals but its 50% cut-off does not transfer. Screening mode helps, at the cost of more false alarms.</li><li>Other hospitals' data have 20-30% missing values, filled with Cleveland medians. Some of the gap may come from the data and not the model.</li><li>SHAP explains the model, not the disease. Nothing here has been clinically validated.</li><li>This version has no user login. Do not enter real personal data on a public deployment.</li></ul></div>
+<h2 style="margin-top:1.8rem">Papers behind the design</h2>
+<div class="card mt-s"><ul style="padding-left:1.1rem;color:var(--ink-2);margin:0">
+  <li>El-Sofany et al., <i>A proposed technique for predicting heart disease using machine learning algorithms and an explainable AI method</i>, Scientific Reports 14, 23277 (2024).</li>
+  <li><i>A comprehensive review of machine learning for heart disease prediction: challenges, trends, ethical considerations, and future directions</i>, PubMed Central, 2025.</li>
+  <li><i>Machine learning techniques for improved prediction of cardiovascular diseases using integrated healthcare data</i>, Frontiers in Artificial Intelligence, 2025.</li>
+  <li><i>Explainable Machine Learning Framework for Cardiovascular Disease Diagnosis and Prognosis</i>, arXiv:2507.11185.</li>
+  <li>Lundberg and Lee, <i>A Unified Approach to Interpreting Model Predictions</i> (SHAP), NeurIPS 2017.</li></ul></div>
+<h2 style="margin-top:1.8rem">Built with</h2>
+<div class="chips mt-s">{% for t in ['Python 3.12','Flask','SQLAlchemy','SQLite / PostgreSQL','scikit-learn','XGBoost','SHAP','pandas','ReportLab','Chart.js','Docker','pytest','GitHub Actions'] %}<span class="chip">{{ t }}</span>{% endfor %}</div>
+<div class="card mt" style="margin-top:1.6rem"><h3>Team</h3><p style="margin:0"><b>{{ cfg.TEAM }}</b> · {{ cfg.INSTITUTE }}</p><p class="small muted" style="margin:.3rem 0 0">Data: UCI Machine Learning Repository, Heart Disease dataset (Janosi, Steinbrunn, Pfisterer, Detrano).</p></div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}{% from "_m.html" import icon, control, csrf with context %}
+{% block title %}Predict{% endblock %}
+{% block content %}
+{% set ex_low = {'age':63,'sex':1,'cp':1,'trestbps':145,'chol':233,'fbs':1,'restecg':2,'thalach':150,'exang':0,'oldpeak':2.3,'slope':3,'ca':0,'thal':6} %}
+{% set ex_high = {'age':67,'sex':1,'cp':4,'trestbps':160,'chol':286,'fbs':0,'restecg':2,'thalach':108,'exang':1,'oldpeak':1.5,'slope':2,'ca':3,'thal':3} %}
+<div class="page-head"><div><h1>Heart risk assessment</h1><p>Fill in the 13 measurements from a check-up. You get an estimate, an explanation and a downloadable report.</p></div></div>
+{% if errors %}<div class="alert error">{{ icon('alert') }}<div><p><b>Please fix these:</b></p><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div></div><br>{% endif %}
+<form method="post" action="{{ url_for('web.predict') }}" class="split" id="predict-form">
+  {{ csrf() }}
+  <div class="grid">
+    <div class="card"><div class="card-head"><h3>About the patient</h3></div>
+      <div class="fgrid">{{ control('age', specs.age, choices, values.age) }}{{ control('sex', specs.sex, choices, values.sex) }}{{ control('cp', specs.cp, choices, values.cp) }}{{ control('fbs', specs.fbs, choices, values.fbs) }}</div></div>
+    <div class="card"><div class="card-head"><h3>Measurements</h3></div>
+      <div class="fgrid">{{ control('trestbps', specs.trestbps, choices, values.trestbps) }}{{ control('chol', specs.chol, choices, values.chol) }}{{ control('thalach', specs.thalach, choices, values.thalach) }}{{ control('restecg', specs.restecg, choices, values.restecg) }}</div></div>
+    <div class="card"><div class="card-head"><h3>Exercise test and imaging</h3></div>
+      <div class="fgrid">{{ control('exang', specs.exang, choices, values.exang) }}{{ control('oldpeak', specs.oldpeak, choices, values.oldpeak) }}{{ control('slope', specs.slope, choices, values.slope) }}{{ control('ca', specs.ca, choices, values.ca) }}{{ control('thal', specs.thal, choices, values.thal) }}</div></div>
+  </div>
+  <aside class="grid sticky">
+    <div class="card">
+      <div class="card-head"><h3>Mode</h3></div>
+      <div class="seg">
+        <label><input type="radio" name="mode" value="standard" {{ 'checked' if mode != 'screening' }}><div class="opt"><b>Standard</b><span>Flags at 50% or more. Fewer false alarms.</span></div></label>
+        <label><input type="radio" name="mode" value="screening" {{ 'checked' if mode == 'screening' }}><div class="opt"><b>Screening</b><span>Flags at {{ ((active_model.screening_threshold if active_model else 0.3) * 100)|round|int }}% or more. Misses fewer patients.</span></div></label>
+      </div>
+      <hr class="sep">
+      <div class="field"><label for="patient_id">Save to a patient (optional)</label>
+        <select class="select" name="patient_id" id="patient_id">
+          <option value="">Quick assessment, no patient</option>
+          {% for p in patients %}<option value="{{ p.id }}" {{ 'selected' if selected and selected.id == p.id }}>{{ p.name }}{% if p.is_demo %} (demo){% endif %}</option>{% endfor %}
+        </select>
+        <span class="help">Or <a href="{{ url_for('web.patient_new') }}">add a new patient</a> first.</span></div>
+      <button class="btn primary lg mt" style="width:100%;justify-content:center" type="submit">Estimate and explain {{ icon('arrow') }}</button>
+    </div>
+    <div class="card flat"><h4>Just looking around?</h4><p class="small">Load a sample patient, then press the button.</p>
+      <div class="actions"><button class="btn secondary sm" type="button" data-fill='{{ ex_low|tojson }}'>Lower-risk example</button><button class="btn secondary sm" type="button" data-fill='{{ ex_high|tojson }}'>Higher-risk example</button></div></div>
+    <div class="alert info">{{ icon('info') }}<p class="small">Educational screening aid. It was trained on 303 patients and is not a diagnosis.</p></div>
+  </aside>
+</form>
+{% endblock %}

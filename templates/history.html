@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% from "_m.html" import icon, badge, empty, pager with context %}
+{% block title %}Assessments{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>All assessments</h1><p>Every estimate from the web form, the API and batch uploads.</p></div>
+  <div class="actions"><a class="btn secondary" href="{{ url_for('web.history', export='csv', **f) }}">{{ icon('download') }} Export CSV</a><button class="btn secondary" type="button" id="cmp-btn" disabled>{{ icon('compare') }} Compare selected (pick 2)</button></div></div>
+<form class="filters" method="get">
+  <div class="field"><label for="patient_id">Patient</label><select class="select" id="patient_id" name="patient_id"><option value="">All</option>{% for p in patients %}<option value="{{ p.id }}" {{ 'selected' if f.patient_id == p.id|string }}>{{ p.name }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="band">Band</label><select class="select" id="band" name="band"><option value="">All</option>{% for v in ['high','moderate','low'] %}<option value="{{ v }}" {{ 'selected' if f.band == v }}>{{ v|title }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="flagged">Flagged</label><select class="select" id="flagged" name="flagged"><option value="">All</option><option value="yes" {{ 'selected' if f.flagged == 'yes' }}>Flagged</option><option value="no" {{ 'selected' if f.flagged == 'no' }}>Not flagged</option></select></div>
+  <div class="field"><label for="source">Source</label><select class="select" id="source" name="source"><option value="">All</option>{% for v in ['web','api','batch'] %}<option value="{{ v }}" {{ 'selected' if f.source == v }}>{{ v }}</option>{% endfor %}</select></div>
+  <button class="btn secondary" type="submit">{{ icon('search') }} Filter</button>
+</form>
+<div class="card" style="padding:.4rem .6rem">
+{% if page.items %}<div class="table-wrap"><table><thead><tr><th></th><th>#</th><th>When (UTC)</th><th>Patient</th><th>Risk</th><th>Mode</th><th>Source</th><th></th></tr></thead><tbody>
+  {% for a in page.items %}<tr><td><input type="checkbox" class="cmp" value="{{ a.id }}" aria-label="Select assessment {{ a.id }}"></td><td>{{ a.id }}</td><td class="small">{{ a.created_at|dt }}</td>
+    <td>{% if a.patient %}<a href="{{ url_for('web.patient_detail', pid=a.patient.id) }}">{{ a.patient.name }}</a>{% else %}<span class="muted small">Quick assessment</span>{% endif %}{% if a.is_demo %} <span class="badge b-demo">Demo</span>{% endif %}</td>
+    <td>{{ badge(a.band) }} <b>{{ a.pct }}%</b>{% if a.flagged %} <span class="badge b-high">Flagged</span>{% endif %}</td><td>{{ a.mode }}</td><td><span class="badge b-muted">{{ a.source }}</span></td>
+    <td class="right"><a class="btn secondary sm" href="{{ url_for('web.assessment_view', aid=a.id) }}">Open</a></td></tr>{% endfor %}</tbody></table></div>
+{% else %}{{ empty('Nothing here yet', 'No assessments match these filters.', url_for('web.predict'), 'Run an assessment') }}{% endif %}</div>
+{{ pager(page, 'web.history') }}
+{% endblock %}
+{% block scripts %}<script>
+const boxes = HW.$$('.cmp'), btn = document.getElementById('cmp-btn');
+function sync() { const c = boxes.filter(b => b.checked); btn.disabled = c.length !== 2; boxes.forEach(b => b.disabled = c.length >= 2 && !b.checked); }
+boxes.forEach(b => b.addEventListener('change', sync));
+btn.addEventListener('click', () => { const c = boxes.filter(b => b.checked).map(b => b.value).sort((x, y) => x - y); location.href = '{{ url_for("web.compare") }}?a=' + c[0] + '&b=' + c[1]; });
+</script>{% endblock %}

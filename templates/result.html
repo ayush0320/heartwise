@@ -1,0 +1,63 @@
+{% extends "base.html" %}{% from "_m.html" import icon, badge, csrf with context %}
+{% block title %}Assessment #{{ a.id }}{% endblock %}
+{% block content %}
+{% set bandname = {'low':'Low','moderate':'Moderate','high':'High'}[res.band] %}
+<div class="page-head">
+  <div><h1>Assessment #{{ a.id }}</h1>
+    <p>{% if a.patient %}For <a href="{{ url_for('web.patient_detail', pid=a.patient.id) }}"><b>{{ a.patient.name }}</b></a> · {% endif %}{{ a.created_at|dt }} UTC · model {{ res.model.name }} ({{ res.model.algorithm }}){% if a.is_demo %} · <span class="badge b-demo">Demo</span>{% endif %}</p></div>
+  <div class="actions no-print">
+    <a class="btn primary" href="{{ url_for('web.assessment_pdf', aid=a.id) }}">{{ icon('download') }} PDF report</a>
+    <a class="btn secondary" href="{{ url_for('web.whatif', **{'from': a.id}) }}">{{ icon('sliders') }} What-if</a>
+    <a class="btn secondary" href="{{ url_for('web.predict', from_assessment=a.id) }}">{{ icon('edit') }} Edit and re-run</a>
+  </div>
+</div>
+{% for w in res.warnings %}<div class="alert warn">{{ icon('alert') }}<p>{{ w }}</p></div><br>{% endfor %}
+<div class="split">
+  <div class="grid">
+    <div class="card">
+      <div class="gauge-wrap"><div id="gauge"></div>
+        <div class="verdict v-{{ res.band }}">{{ icon('alert' if res.flagged else 'check') }}<span>{% if res.flagged %}Flagged: further cardiac investigation suggested{% else %}Not flagged: lower estimated likelihood{% endif %}</span></div>
+        <p class="small muted mt-s">{{ a.mode|title }} mode flags at {{ (res.threshold * 100)|round|int }}% or above.
+          {% if a.mode == 'standard' and not res.flagged and res.prob >= res.screening_threshold %}<br><b>Screening mode would flag this patient</b> (threshold {{ (res.screening_threshold * 100)|round|int }}%).{% endif %}</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Why this estimate?</h2><span class="small muted">SHAP, in percentage points</span></div>
+      <p class="small">The average patient in the training data starts at <b>{{ res.base_pct }}%</b>. Each bar shows how far one input moved this patient from there.</p>
+      <div class="legend"><span><i style="background:var(--bad)"></i>raises the estimate</span><span><i style="background:var(--ok)"></i>lowers it</span></div>
+      <div class="shap" id="shap"></div>
+      {% if res.sentences %}<hr class="sep"><h4>In plain words</h4><ul style="margin:.3rem 0 0 1.1rem;color:var(--ink-2)">{% for s in res.sentences %}<li>{{ s }}</li>{% endfor %}</ul>{% endif %}
+      <p class="tiny muted mt-s">SHAP shows what the <i>model</i> relied on. It does not prove what causes the disease.</p>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>What you can do with this</h2><span class="small muted">General information, not medical advice</span></div>
+      {% if res.advice %}<div class="grid g2">{% for c in res.advice %}
+        <div class="advice"><span class="badge {{ 'b-info' if c.kind == 'doctor' else ('b-ok' if c.kind == 'lifestyle' else 'b-muted') }}">{{ c.kind_label }}</span>
+          <h4>{{ c.title }}</h4><div class="tiny muted" style="margin-bottom:.35rem">{{ c.value_text }} · raised the estimate by {{ c.points|round(1) }} points</div><p>{{ c.text }}</p></div>{% endfor %}</div>
+      {% else %}<p>No single input is pushing this estimate up by more than a couple of points. Keep up regular check-ups.</p>{% endif %}
+      <p class="small mt-s">Learn more: {% for t, u in links %}<a href="{{ u }}" target="_blank" rel="noopener">{{ t }}</a>{{ ' · ' if not loop.last }}{% endfor %} · <a href="{{ url_for('web.learn') }}">Our Learn page</a></p>
+    </div>
+  </div>
+  <aside class="grid">
+    {% if res.similar %}<div class="card similar"><div class="card-head"><h3>Patients like this one</h3></div>
+      <div class="bignum">{{ res.similar.with_disease }} of {{ res.similar.k }}</div>
+      <p class="small">of the {{ res.similar.k }} most similar patients in the training data had heart disease ({{ res.similar.pct|round|int }}%). The model's own estimate is {{ res.pct }}%.</p>
+      <div class="meter"><i style="width:{{ res.similar.pct }}%"></i></div></div>{% endif %}
+    {% if a.patient and follow %}<div class="card"><div class="card-head"><h3>Follow-up</h3></div>
+      <p class="small">{% if a.patient.next_checkup %}Next check-up: <b>{{ a.patient.next_checkup|d }}</b>.{% else %}No follow-up scheduled.{% endif %} A {{ bandname|lower }}-band result usually calls for a re-check in about {{ follow }} days.</p>
+      <form method="post" action="{{ url_for('web.followup', pid=a.patient.id) }}">{{ csrf() }}<input type="hidden" name="days" value="{{ follow }}"><button class="btn secondary sm" type="submit">{{ icon('calendar') }} Set follow-up in {{ follow }} days</button></form></div>{% endif %}
+    <div class="card"><div class="card-head"><h3>Inputs used</h3></div>
+      <dl class="kv">{% for label, text in inputs %}<dt>{{ label }}</dt><dd>{{ text }}</dd>{% endfor %}</dl></div>
+    <div class="card flat"><dl class="kv"><dt>Source</dt><dd>{{ a.source }}</dd><dt>Mode</dt><dd>{{ a.mode }}</dd><dt>Threshold</dt><dd>{{ (res.threshold * 100)|round|int }}%</dd><dt>Model</dt><dd>{{ res.model.name }}</dd></dl></div>
+  </aside>
+</div>
+<div class="alert warn mt">{{ icon('alert') }}<p><b>Important.</b> This is a student project trained on 303 patients. It is a screening aid and cannot diagnose or rule out heart disease. On other hospitals' data it missed many patients with disease. Talk to a doctor about your health. For severe chest pain, breathlessness or fainting, call 112 (India) or your local emergency number.</p></div>
+{% endblock %}
+{% block scripts %}
+<script type="application/json" id="page-data">{{ data|tojson }}</script>
+<script>
+  const D = JSON.parse(document.getElementById('page-data').textContent);
+  HW.gauge(document.getElementById('gauge'), D.pct / 100, D.edges, D.threshold);
+  HW.shap(document.getElementById('shap'), D.contributions);
+</script>
+{% endblock %}

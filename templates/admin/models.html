@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% from "_m.html" import icon, csrf with context %}
+{% block title %}Admin: models{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Admin: models</h1><p>Train a new version from your own labelled data, compare it with the active one, then switch if it is better.</p></div></div>
+{% include "admin/_nav.html" %}
+<div class="card"><div class="card-head"><h3>Model versions</h3><span class="small muted">scores come from each version's own held-out split</span></div>
+  <div class="table-wrap"><table><thead><tr><th>Version</th><th>Trained</th><th>Source</th><th>Algorithm</th><th class="num">Train n</th><th class="num">CV AUC</th><th class="num">Test AUC</th><th class="num">Test recall</th><th class="num">Screen thr.</th><th class="num">AUC vs active</th><th></th></tr></thead><tbody>
+  {% for v in versions %}<tr><td><b>{{ v.name }}</b> {% if v.is_active %}<span class="badge b-ok">active</span>{% endif %}</td><td class="small">{{ v.created_at|dt }}</td><td class="small">{{ v.source }}</td><td>{{ v.model_name }}</td>
+    <td class="num">{{ v.n_train }}</td><td class="num">{{ v.cv_auc }}</td><td class="num">{{ v.test_auc }}</td><td class="num">{{ v.test_recall }}</td><td class="num">{{ (v.screening_threshold * 100)|round|int }}%</td>
+    <td class="num">{% if active_v and not v.is_active %}{% set dd = ((v.test_auc or 0) - (active_v.test_auc or 0))|round(3) %}<span style="color:var(--{{ 'ok' if dd > 0 else 'bad' }})">{{ '+' if dd > 0 }}{{ dd }}</span>{% else %}-{% endif %}</td>
+    <td class="right">{% if not v.is_active %}<form method="post" action="{{ url_for('web.admin_activate', vid=v.id) }}" data-confirm="Make {{ v.name }} the active model? New assessments will use it.">{{ csrf() }}<button class="btn secondary sm" type="submit">Activate</button></form>{% endif %}</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="split-even mt">
+  <form class="card" method="post" action="{{ url_for('web.admin_retrain') }}" enctype="multipart/form-data">{{ csrf() }}
+    <div class="card-head"><h3>Train a new version</h3></div>
+    <p class="small">Upload a CSV with the 13 input columns and a <span class="mono">target</span> column (0/1, or 0-4 severity). At least 100 rows with 20 or more of each class. Training takes under a minute and the new version is <b>not</b> activated automatically.</p>
+    <div class="field"><input class="input" type="file" name="file" accept=".csv,text/csv" required></div>
+    <button class="btn primary mt-s" type="submit" {{ 'disabled' if read_only }}>{{ icon('upload') }} Train new version</button>
+    <p class="tiny muted mt-s">Tip: to test the flow, export a few hundred rows of the UCI files with the same columns.</p></form>
+  <div class="card"><div class="card-head"><h3>How to decide</h3></div>
+    <ul style="padding-left:1.1rem;color:var(--ink-2);margin:0"><li>Prefer the version with the better held-out ROC-AUC and recall, but check the sample sizes: tiny test sets are noisy.</li><li>Look at the Model page after activating, especially the other-hospital results.</li><li>Old assessments keep the version they were made with, so history stays honest.</li></ul></div>
+</div>
+{% endblock %}

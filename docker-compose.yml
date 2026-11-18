@@ -1,0 +1,16 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-real-use}
+      READ_ONLY_ADMIN: ${READ_ONLY_ADMIN:-0}    # set to 1 on any public deployment
+      LOAD_DEMO: ${LOAD_DEMO:-1}
+      API_RATE_LIMIT: ${API_RATE_LIMIT:-30}
+      # DATABASE_URL: postgresql://user:pass@db:5432/heartwise   (add psycopg2-binary to requirements.txt first)
+    volumes:
+      - heartwise-data:/data     # database, trained models and the secret key survive restarts
+    restart: unless-stopped
+volumes:
+  heartwise-data:

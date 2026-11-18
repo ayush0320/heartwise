@@ -1,0 +1,5 @@
+<div class="tabs" style="margin-bottom:1.2rem">
+  {% for ep, label in [('web.admin_overview','Overview'),('web.admin_models','Models'),('web.admin_system','System')] %}
+  <a href="{{ url_for(ep) }}" style="padding:.65rem 1rem;font-weight:650;border-bottom:2px solid {{ 'var(--brand)' if request.endpoint == ep else 'transparent' }};margin-bottom:-1px;color:{{ 'var(--brand)' if request.endpoint == ep else 'var(--ink-3)' }}">{{ label }}</a>{% endfor %}
+</div>
+{% if read_only %}<div class="alert warn">{{ icon('alert') }}<p>Read-only mode: retraining, activating models, API keys and demo data are switched off on this deployment.</p></div><br>{% endif %}

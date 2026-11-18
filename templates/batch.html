@@ -1,0 +1,42 @@
+{% extends "base.html" %}{% from "_m.html" import icon, badge, csrf with context %}
+{% block title %}Batch scoring{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Batch scoring</h1><p>Upload a CSV and score up to 500 patients at once, for example for a screening camp.</p></div></div>
+{% if error %}<div class="alert error">{{ icon('alert') }}<p>{{ error }}</p></div><br>{% endif %}
+<div class="split-even">
+  <form class="card" method="post" enctype="multipart/form-data">{{ csrf() }}
+    <div class="card-head"><h3>Upload</h3></div>
+    <div class="field"><label for="file">CSV file</label><input class="input" type="file" id="file" name="file" accept=".csv,text/csv" required></div>
+    <div class="field mt-s"><label for="mode">Mode</label><select class="select" id="mode" name="mode"><option value="standard">Standard (flags at 50%)</option><option value="screening">Screening (lower threshold)</option></select></div>
+    <button class="btn primary mt" type="submit">{{ icon('upload') }} Score the file</button>
+  </form>
+  <div class="card"><div class="card-head"><h3>File format</h3></div>
+    <p class="small">One row per patient with these columns (any order, a header row is required). An optional <span class="mono">name</span>, <span class="mono">id</span> or <span class="mono">label</span> column is kept in the results.</p>
+    <p class="mono small" style="word-break:break-word;color:var(--ink)">{{ ml.FEATURES|join(', ') }}</p>
+    <a class="btn secondary sm" href="{{ url_for('web.batch_sample') }}">{{ icon('download') }} Download a sample file</a>
+    <p class="tiny muted mt-s">Rows are saved to the assessment history without individual explanations. Open any of them later to see its SHAP breakdown.</p></div>
+</div>
+{% if results %}
+<div class="grid g4 mt">
+  <div class="card kpi"><span class="label">Rows</span><span class="value">{{ summary.total }}</span></div>
+  <div class="card kpi"><span class="label">Scored</span><span class="value">{{ summary.scored }}</span></div>
+  <div class="card kpi"><span class="label">Flagged</span><span class="value" style="color:var(--bad)">{{ summary.flagged }}</span><span class="sub">at {{ (summary.threshold * 100)|round|int }}% or above</span></div>
+  <div class="card kpi"><span class="label">Model</span><span class="value">{{ summary.model }}</span><span class="sub">{{ summary.mode }} mode</span></div>
+</div>
+<div class="card mt"><div class="card-head"><h3>Results</h3><button class="btn secondary sm" type="button" id="dl">{{ icon('download') }} Download results CSV</button></div>
+  <div class="table-wrap"><table><thead><tr><th>Patient</th><th>Risk</th><th>Result</th></tr></thead><tbody>
+  {% for r in results %}<tr><td>{{ r.label }}</td>
+    {% if r.ok %}<td>{{ badge(r.band) }} <b>{{ r.pct }}%</b></td><td>{% if r.flagged %}<span class="badge b-high">Flagged</span>{% else %}<span class="muted small">Not flagged</span>{% endif %}</td>
+    {% else %}<td colspan="2"><span class="badge b-warn">Skipped</span> <span class="small muted">{{ r.errors|join(' ') }}</span></td>{% endif %}</tr>{% endfor %}</tbody></table></div></div>
+{% endif %}
+{% endblock %}
+{% block scripts %}{% if results %}
+<script type="application/json" id="page-data">{{ results|tojson }}</script>
+<script>
+const R = JSON.parse(document.getElementById('page-data').textContent);
+document.getElementById('dl').addEventListener('click', () => {
+  const rows = [['label','risk_percent','band','flagged','note']].concat(R.map(r => r.ok ? [r.label, r.pct, r.band, r.flagged ? 1 : 0, ''] : [r.label, '', '', '', r.errors.join(' ')]));
+  const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv'})); a.download = 'heartwise-batch-results.csv'; a.click();
+});
+</script>{% endif %}{% endblock %}

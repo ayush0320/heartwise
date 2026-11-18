@@ -1,0 +1,100 @@
+{% extends "base.html" %}{% from "_m.html" import icon, badge with context %}
+{% block title %}Model{% endblock %}
+{% block content %}
+{% set ds = m.datasets %}{% set ext = [ds.hungarian, ds.switzerland, ds.va] %}
+<div class="page-head"><div><h1>Model performance</h1><p>How well the active model works, where it fails, and what the screening threshold changes.</p></div>
+  <div class="actions"><span class="badge b-info">{{ v.name }} · {{ v.model_name }}</span><a class="btn secondary sm" href="{{ url_for('web.admin_models') }}">All versions</a></div></div>
+<div class="grid g4">
+  <div class="card kpi"><span class="label">Held-out ROC-AUC</span><span class="value">{{ ds.heldout.standard.roc_auc }}</span><span class="sub">{{ m.n_test }} test patients</span></div>
+  <div class="card kpi"><span class="label">Held-out recall</span><span class="value">{{ (ds.heldout.standard.recall * 100)|round|int }}%</span><span class="sub">at the 50% threshold</span></div>
+  <div class="card kpi"><span class="label">Other hospitals, recall</span><span class="value" style="color:var(--bad)">{{ (ext|map(attribute='standard')|map(attribute='recall')|min * 100)|round|int }}–{{ (ext|map(attribute='standard')|map(attribute='recall')|max * 100)|round|int }}%</span><span class="sub">at 50%, not retrained</span></div>
+  <div class="card kpi"><span class="label">Screening mode, recall</span><span class="value" style="color:var(--ok)">{{ (ext|map(attribute='screening')|map(attribute='recall')|min * 100)|round|int }}–{{ (ext|map(attribute='screening')|map(attribute='recall')|max * 100)|round|int }}%</span><span class="sub">at {{ (thresholds.screening * 100)|round|int }}% on the same hospitals</span></div>
+</div>
+<div class="tabs mt">
+  <button class="on" data-tab="t-over">Overview</button><button data-tab="t-hosp">Hospitals and threshold</button><button data-tab="t-imp">Feature importance</button><button data-tab="t-fair">Fairness</button><button data-tab="t-method">Method</button>
+</div>
+
+<div class="tabpane on" id="t-over">
+  <div class="card"><div class="card-head"><h3>Four models were compared</h3><span class="small muted">5-fold cross-validation on {{ m.n_train }} training patients, then scored on {{ m.n_test }} held-out patients</span></div>
+    <div class="table-wrap"><table><thead><tr><th>Model</th><th class="num">CV ROC-AUC</th><th class="num">CV recall</th><th class="num">Test accuracy</th><th class="num">Test precision</th><th class="num">Test recall</th><th class="num">Test ROC-AUC</th></tr></thead><tbody>
+    {% for name, c in m.comparison.items() %}<tr><td><b>{{ name }}</b>{% if name == m.model_name %} <span class="badge b-ok">deployed</span>{% endif %}</td><td class="num">{{ c.cv_auc }} ± {{ c.cv_auc_std }}</td><td class="num">{{ c.cv_recall }}</td><td class="num">{{ c.test.accuracy }}</td><td class="num">{{ c.test.precision }}</td><td class="num">{{ c.test.recall }}</td><td class="num">{{ c.test.roc_auc }}</td></tr>{% endfor %}</tbody></table></div>
+    <p class="small mt-s">SHAP's exact explainer needs a tree-based model, so the best <i>tree</i> model by cross-validated ROC-AUC is deployed. With so few patients, scores move by several points between random splits.</p></div>
+  <div class="grid g2 mt">
+    <div class="card"><h3>Standard threshold: {{ (thresholds.standard * 100)|round|int }}%</h3><p>A patient is flagged when the estimate is at least this high. It keeps false alarms low, but on other hospitals' data it misses roughly half of the patients with disease.</p></div>
+    <div class="card"><h3>Screening threshold: {{ (thresholds.screening * 100)|round|int }}%</h3><p>Chosen automatically as the highest threshold that still catches 90% of true cases in cross-validated predictions on the training data. It raises recall everywhere, and costs precision.</p></div>
+  </div>
+</div>
+
+<div class="tabpane" id="t-hosp">
+  <div class="card"><div class="card-head"><h3>Trained on one hospital, tested on four sets</h3><span class="small muted">the model is not retrained for the other hospitals</span></div>
+    <div class="table-wrap"><table class="tbl-sm"><thead><tr><th>Dataset</th><th class="num">Patients</th><th class="num">Disease %</th><th class="num">Missing %</th><th class="num">ROC-AUC</th><th class="num">Recall 50%</th><th class="num">Prec. 50%</th><th class="num">Recall screen</th><th class="num">Prec. screen</th></tr></thead><tbody>
+    {% for k, d in ds.items() %}<tr><td><b>{{ d.name }}</b></td><td class="num">{{ d.n }}</td><td class="num">{{ d.positive_pct }}</td><td class="num">{{ d.missing_pct }}</td><td class="num">{{ d.standard.roc_auc }}</td><td class="num">{{ d.standard.recall }}</td><td class="num">{{ d.standard.precision }}</td><td class="num"><b>{{ d.screening.recall }}</b></td><td class="num">{{ d.screening.precision }}</td></tr>{% endfor %}</tbody></table></div>
+    <div class="alert warn mt-s">{{ icon('alert') }}<p>The datasets differ a lot in disease rate (Switzerland is mostly positive) and have 20–30% of values missing, which are filled with training medians. Part of the gap may come from those differences and not only from the model.</p></div></div>
+  <div class="split-even mt">
+    <div class="card"><div class="card-head"><h3>ROC curves</h3></div><div class="chart-box tall"><canvas id="c-roc"></canvas></div></div>
+    <div class="card"><div class="card-head"><h3>Threshold explorer</h3></div>
+      <p class="small">Drag to see how many patients are caught or missed on each dataset.</p>
+      <div class="range-row"><span class="range-val" id="t-val">50%</span><input type="range" id="t-slider" min="5" max="95" step="1" value="50"></div>
+      <div class="actions mt-s"><button class="btn secondary sm" type="button" id="snap-std">Standard {{ (thresholds.standard * 100)|round|int }}%</button><button class="btn secondary sm" type="button" id="snap-scr">Screening {{ (thresholds.screening * 100)|round|int }}%</button></div></div>
+  </div>
+  <div class="grid g2 mt" id="explorer"></div>
+</div>
+
+<div class="tabpane" id="t-imp">
+  <div class="card"><div class="card-head"><h3>Which inputs the model relies on</h3><span class="small muted">mean absolute SHAP value on the held-out split, in percentage points</span></div>
+    <div class="chart-box tall"><canvas id="c-imp"></canvas></div>
+    <p class="small mt-s">SHAP shows what the model uses, not what causes disease. Fasting blood sugar and resting ECG count for little here; thalassemia, major vessels and chest pain type count for most.</p></div>
+</div>
+
+<div class="tabpane" id="t-fair">
+  <div class="card"><div class="card-head"><h3>Does it work equally well for everyone?</h3><span class="small muted">pooled held-out + three other hospitals</span></div>
+    {% for title, key in [('By sex', 'sex'), ('By age group', 'age')] %}<h4 class="mt-s">{{ title }}</h4>
+    <div class="table-wrap"><table class="tbl-sm"><thead><tr><th>Group</th><th class="num">Patients</th><th class="num">With disease</th><th class="num">Recall at 50%</th><th class="num">Recall, screening</th><th class="num">ROC-AUC</th><th></th></tr></thead><tbody>
+    {% for g, s in m.fairness[key].items() %}<tr><td><b>{{ g }}</b></td><td class="num">{{ s.n }}</td><td class="num">{{ s.positives }}</td><td class="num">{{ s.recall_standard if s.recall_standard is not none else '-' }}</td><td class="num">{{ s.recall_screening if s.recall_screening is not none else '-' }}</td><td class="num">{{ s.roc_auc if s.roc_auc is not none else '-' }}</td>
+      <td>{% if s.n < 30 or s.positives < 10 %}<span class="badge b-warn">small group</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>{% endfor %}
+    <p class="small mt-s">Groups with fewer than 30 patients or 10 cases are marked because their numbers are unstable. Women are a small share of this data, so results for them are less certain.</p></div>
+</div>
+
+<div class="tabpane" id="t-method">
+  <div class="card"><h3>How the model was built</h3>
+    <ul style="color:var(--ink-2);padding-left:1.2rem">
+      <li><b>Data:</b> UCI Heart Disease, Cleveland subset ({{ m.n_total }} patients), 13 inputs. Source: {{ m.source }}.</li>
+      <li><b>Cleaning:</b> "?" and impossible zeros (blood pressure, cholesterol) become missing; the 0-4 severity label becomes disease / no disease; missing values are filled with the training median.</li>
+      <li><b>Split:</b> stratified 80/20 ({{ m.n_train }} / {{ m.n_test }}), fixed random seed.</li>
+      <li><b>Model selection:</b> logistic regression, decision tree, random forest and XGBoost compared with cross-validation.</li>
+      <li><b>Explainability:</b> SHAP TreeExplainer, values in percentage points.</li>
+      <li><b>Validation:</b> the frozen model is scored on the Hungarian, Switzerland and VA Long Beach files from the same UCI repository.</li>
+      <li><b>Screening threshold:</b> highest threshold with at least 90% recall on cross-validated training predictions.</li>
+    </ul></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script type="application/json" id="page-data">{{ m|tojson }}</script>
+<script>
+const M = JSON.parse(document.getElementById('page-data').textContent), C = HW.colors();
+const keys = Object.keys(M.datasets), cols = [C.brand, C.teal, C.warn, C.info];
+let built = false;
+function buildCharts() {
+  if (built) return; built = true;
+  const sets = keys.map((k, i) => ({label: M.datasets[k].name, data: M.datasets[k].roc.map(p => ({x: p[0], y: p[1]})), borderColor: cols[i], backgroundColor: cols[i], showLine: true, pointRadius: 0, borderWidth: 2, tension: 0}));
+  sets.push({label: 'Chance', data: [{x: 0, y: 0}, {x: 1, y: 1}], borderColor: C.ink, borderDash: [5, 5], showLine: true, pointRadius: 0, borderWidth: 1});
+  HW.chart('c-roc', {type: 'scatter', data: {datasets: sets}, options: {scales: {x: {min: 0, max: 1, title: {display: true, text: 'False alarm rate'}}, y: {min: 0, max: 1, title: {display: true, text: 'Share of sick patients caught'}}}, plugins: {legend: {position: 'bottom'}}}});
+  const imp = M.importance;
+  HW.chart('c-imp', {type: 'bar', data: {labels: imp.map(i => i.label), datasets: [{label: 'Mean |SHAP| (points)', data: imp.map(i => i.importance), backgroundColor: C.info, borderRadius: 4}]}, options: {indexAxis: 'y', plugins: {legend: {display: false}}}});
+}
+function conf(d, t) { let tp = 0, fp = 0, tn = 0, fn = 0; d.probs.forEach((p, i) => { const pr = p >= t, y = d.y[i]; if (pr && y) tp++; else if (pr) fp++; else if (y) fn++; else tn++; }); return {tp, fp, tn, fn, rec: tp / ((tp + fn) || 1), pre: tp / ((tp + fp) || 1), acc: (tp + tn) / d.probs.length}; }
+const slider = document.getElementById('t-slider');
+function explore() {
+  const t = slider.value / 100; document.getElementById('t-val').textContent = slider.value + '%';
+  document.getElementById('explorer').innerHTML = keys.map(k => { const d = M.datasets[k], c = conf(d, t);
+    return `<div class="card"><div class="card-head"><h3>${d.name}</h3><span class="small muted">${d.n} patients</span></div>
+    <div class="cm"><div class="tp">${c.tp}<span>sick, caught</span></div><div class="fn">${c.fn}<span>sick, missed</span></div><div class="fp">${c.fp}<span>false alarms</span></div><div class="tn">${c.tn}<span>healthy, cleared</span></div></div>
+    <p class="small mt-s">Recall <b>${(c.rec * 100).toFixed(0)}%</b> · Precision <b>${(c.pre * 100).toFixed(0)}%</b> · Accuracy <b>${(c.acc * 100).toFixed(0)}%</b></p></div>`; }).join('');
+}
+slider.addEventListener('input', explore);
+document.getElementById('snap-std').onclick = () => { slider.value = Math.round(M.thresholds.standard * 100); explore(); };
+document.getElementById('snap-scr').onclick = () => { slider.value = Math.round(M.thresholds.screening * 100); explore(); };
+explore();
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', buildCharts));
+buildCharts();
+</script>{% endblock %}

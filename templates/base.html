@@ -1,0 +1,46 @@
+{% from "_m.html" import icon %}
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}Home{% endblock %} · {{ cfg.PROJECT_TITLE }}</title>
+<meta name="csrf" content="{{ csrf_token }}">
+<meta name="description" content="Explainable heart-disease risk estimates with SHAP, patient tracking, reports and an API. Educational screening aid.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23c8283d' d='M12 21s-7-4.6-9.5-9C.9 9 2.3 5.5 5.6 5.1c2-.2 3.7.8 4.6 2.4.9-1.6 2.6-2.6 4.6-2.4 3.3.4 4.7 3.9 3.1 6.9C19 16.4 12 21 12 21z'/%3E%3C/svg%3E">
+<script>try{var t=localStorage.getItem('hw-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+{% set ep = request.endpoint or '' %}
+<header class="topbar"><div class="in">
+  <a class="brand" href="{{ url_for('web.home') }}"><span class="logo">{{ icon('heart') }}</span>{{ cfg.PROJECT_TITLE }}</a>
+  <nav class="nav" id="nav">
+    <a href="{{ url_for('web.home') }}" class="{{ 'on' if ep == 'web.home' }}">Home</a>
+    <a href="{{ url_for('web.predict') }}" class="{{ 'on' if ep == 'web.predict' or ep == 'web.assessment_view' }}">Predict</a>
+    <a href="{{ url_for('web.whatif') }}" class="{{ 'on' if ep == 'web.whatif' }}">What-if</a>
+    <a href="{{ url_for('web.patients') }}" class="{{ 'on' if ep.startswith('web.patient') }}">Patients{% if nav_due %}<span class="dot" title="Follow-ups due">{{ nav_due }}</span>{% endif %}</a>
+    <a href="{{ url_for('web.dashboard') }}" class="{{ 'on' if ep == 'web.dashboard' }}">Dashboard</a>
+    <a href="{{ url_for('web.model_page') }}" class="{{ 'on' if ep == 'web.model_page' }}">Model</a>
+    <a href="{{ url_for('web.learn') }}" class="{{ 'on' if ep == 'web.learn' }}">Learn</a>
+    <a href="{{ url_for('web.about') }}" class="{{ 'on' if ep == 'web.about' }}">About</a>
+    <details><summary>More</summary><div class="drop">
+      <a href="{{ url_for('web.batch') }}">Batch scoring</a><a href="{{ url_for('web.history') }}">All assessments</a>
+      <a href="{{ url_for('web.docs') }}">API docs</a><a href="{{ url_for('web.admin_overview') }}">Admin</a><a href="{{ url_for('web.disclaimer') }}">Disclaimer</a>
+    </div></details>
+  </nav>
+  <span class="spacer"></span>
+  <button class="iconbtn" id="theme-btn" type="button" aria-label="Switch light or dark theme" data-sun='{{ icon("sun") }}' data-moon='{{ icon("moon") }}'>{{ icon('moon') }}</button>
+  <button class="iconbtn" id="menu-btn" type="button" aria-label="Menu">{{ icon('menu') }}</button>
+</div></header>
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat, msg in messages %}<div class="flash {{ cat }}">{{ icon('alert' if cat in ('error','warn') else 'check') }}<span>{{ msg }}</span></div>{% endfor %}</div>
+{% endif %}{% endwith %}
+<main class="container">{% block content %}{% endblock %}</main>
+<footer class="footer"><div class="in">
+  <span><b>{{ cfg.PROJECT_TITLE }}</b> is an educational screening aid, not a medical device or a diagnosis. If you are unwell, see a doctor. For severe chest pain call 112 (India).</span>
+  <span><a href="{{ url_for('web.disclaimer') }}">Disclaimer &amp; privacy</a> · <a href="{{ url_for('web.docs') }}">API</a> · v{{ cfg.APP_VERSION }}{% if active_model %} · model {{ active_model.name }}{% endif %}</span>
+</div></footer>
+<script src="{{ url_for('static', filename='js/chart.umd.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body></html>

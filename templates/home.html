@@ -1,0 +1,54 @@
+{% extends "base.html" %}{% from "_m.html" import icon with context %}
+{% block title %}Home{% endblock %}
+{% block content %}
+{% set ds = m.datasets if m else none %}
+<section class="hero">
+  <span class="tag">{{ icon('shield') }} Explainable · Tested on 4 hospitals · Open source</span>
+  <h1>Understand your heart risk, and why.</h1>
+  <p>Enter 13 routine check-up measurements. {{ cfg.PROJECT_TITLE }} estimates the likelihood of heart disease and shows exactly which inputs pushed the number up or down. It also tells you where its own predictions stop being reliable.</p>
+  <div class="actions">
+    <a class="btn light lg" href="{{ url_for('web.predict') }}">Try the predictor {{ icon('arrow') }}</a>
+    <a class="btn lg" style="border:1px solid rgba(255,255,255,.4);color:#fff" href="{{ url_for('web.whatif') }}">Explore what-if</a>
+  </div>
+  <svg class="ecg" viewBox="0 0 600 120" aria-hidden="true"><path d="M0 70 H120 L140 70 L155 20 L180 105 L200 70 H330 L350 70 L365 30 L390 95 L410 70 H600"/></svg>
+</section>
+
+<div class="stat-strip">
+  <div class="stat"><b>13</b><span>routine clinical inputs</span></div>
+  <div class="stat"><b>{{ ds.heldout.standard.roc_auc if ds else '-' }}</b><span>ROC-AUC on a held-out test split</span></div>
+  <div class="stat"><b>4</b><span>hospital datasets used in validation</span></div>
+  <div class="stat"><b>{{ n_assess }}</b><span>assessments saved so far</span></div>
+</div>
+
+<h2 class="mt" style="margin-top:2.2rem">Everything in one place</h2>
+<div class="grid g3 mt-s">
+  <div class="card feature"><span class="ico">{{ icon('activity') }}</span><h3>Explainable predictions</h3><p>Every estimate comes with a SHAP breakdown: red bars raise the risk, green bars lower it, and together they add up exactly to the result.</p></div>
+  <div class="card feature"><span class="ico">{{ icon('sliders') }}</span><h3>What-if simulator</h3><p>Drag sliders for blood pressure, cholesterol or heart rate and watch the estimate and its explanation change live.</p></div>
+  <div class="card feature"><span class="ico">{{ icon('users') }}</span><h3>Patients and health log</h3><p>Keep patient records, log readings over time, see risk trends and get reminded when a follow-up is due.</p></div>
+  <div class="card feature"><span class="ico">{{ icon('file') }}</span><h3>Reports and exports</h3><p>Download a one-page PDF for any assessment, export history as CSV, or score a whole spreadsheet in one go.</p></div>
+  <div class="card feature"><span class="ico">{{ icon('code') }}</span><h3>REST API</h3><p>Predict, explain and batch-score over HTTP with API keys, rate limits and auto-generated documentation.</p></div>
+  <div class="card feature"><span class="ico">{{ icon('bars') }}</span><h3>Model transparency</h3><p>Compare hospitals, drag a threshold slider, check fairness by sex and age, and watch for data drift.</p></div>
+</div>
+
+<h2 style="margin-top:2.2rem">How it works</h2>
+<div class="steps mt-s">
+  <div class="step"><h3>Enter measurements</h3><p>Age, blood pressure, cholesterol, ECG results and a few more. Nothing needs a lab you can't get at a normal check-up.</p></div>
+  <div class="step"><h3>Get an estimate and the reason</h3><p>A Random Forest trained on the UCI Cleveland data scores the patient. SHAP explains each input's share.</p></div>
+  <div class="step"><h3>Act with context</h3><p>See similar patients, plain-language advice cards, a PDF to share with a doctor, and a follow-up reminder.</p></div>
+</div>
+
+{% if ds %}
+{% set ext = [ds.hungarian, ds.switzerland, ds.va] %}
+<div class="callout mt" style="margin-top:2.2rem">
+  <span style="color:var(--warn);font-size:1.6rem">{{ icon('alert') }}</span>
+  <div><h3>Honest by design</h3>
+  <p>Trained on one hospital, the model catches {{ (ds.heldout.standard.recall * 100)|round|int }}% of patients with disease on its own test split. On three other hospitals at the standard 50% threshold it catches only {{ (ext|map(attribute='standard')|map(attribute='recall')|min * 100)|round|int }}–{{ (ext|map(attribute='standard')|map(attribute='recall')|max * 100)|round|int }}%.
+  That is why there is a <b>screening mode</b> with a lower threshold ({{ (m.thresholds.screening * 100)|round|int }}%), which raises this to {{ (ext|map(attribute='screening')|map(attribute='recall')|min * 100)|round|int }}–{{ (ext|map(attribute='screening')|map(attribute='recall')|max * 100)|round|int }}% at the cost of more false alarms.
+  <a href="{{ url_for('web.model_page') }}">See the full validation →</a></p></div>
+</div>
+{% endif %}
+<div class="card mt center" style="margin-top:1.6rem;padding:2rem">
+  <h2>Ready to try it?</h2><p>It takes about a minute. Use an example patient if you just want to look around.</p>
+  <a class="btn primary lg" href="{{ url_for('web.predict') }}">Start an assessment {{ icon('arrow') }}</a>
+</div>
+{% endblock %}
